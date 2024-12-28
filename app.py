@@ -1,63 +1,137 @@
+from github_utils import GitHubManager
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Modify the save_submission function
+def save_submission(name, email, student_id, grade):
+    """Save submission to both local CSV and GitHub repository."""
+    try:
+        # Save to GitHub
+        github_manager = GitHubManager()
+        github_manager.update_csv_file(name, email, student_id, grade)
+        return True
+    except Exception as e:
+        st.error(f"Failed to save submission to GitHub: {str(e)}")
+        return False
+
+# Update the submit button section in main()
+    with col2:
+        if st.button("📤 Submit Assignment", use_container_width=True):
+            if not name or not email:
+                st.error("❌ Please fill in the required fields (Name and Email)")
+            elif not code.strip():
+                st.error("❌ Please paste your code before submitting")
+            else:
+                grade = grade_submission(code)
+                if save_submission(name, email, student_id, grade):
+                    st.balloons()
+                    st.success(f"✅ Assignment submitted successfully! Your grade: {grade}/100")
+                else:
+                    st.error("Failed to save submission. Please try again or contact support.")
+                    
 import streamlit as st
-from streamlit_ace import st_ace
+from style import apply_style
+from grade import grade_submission, calculate_distances, create_map
 import pandas as pd
-import io
-import contextlib
-import matplotlib.pyplot as plt
+from streamlit_folium import folium_static
+import os
+
+def save_submission(name, email, student_id, grade):
+    """Save submission details to CSV file."""
+    submission = pd.DataFrame({
+        'Name': [name],
+        'Email': [email],
+        'Student_ID': [student_id],
+        'Grade': [grade],
+        'Submission_Date': [pd.Timestamp.now()]
+    })
+    
+    filepath = 'data_submission.csv'
+    if os.path.exists(filepath):
+        submission.to_csv(filepath, mode='a', header=False, index=False)
+    else:
+        submission.to_csv(filepath, index=False)
 
 def main():
-    # Set the page configuration
-    st.set_page_config(page_title="Code Editor with Visualization", layout="wide")
-
-    # Page title
-    st.title("Interactive Code Editor with Database Access and Visualization")
-
-    # Instructions
-    st.markdown(
-        """
-        Welcome to the interactive code editor! Here you can write Python code, edit it, and run it directly.
-        The Lego dataset has been preloaded and is available as a pandas DataFrame named `lego_data`.
-
-        1. Write your code in the editor below.
-        2. Use `lego_data` to analyze the dataset.
-        3. Generate visualizations using libraries like matplotlib.
-        4. Click the 'Run Code' button to execute it.
-        5. View the output and graphs below.
-        """
-    )
-
-    # Load the dataset
-    try:
-        data_path = "lego_block_dataset_with_availability.csv"
-        lego_data = pd.read_csv(data_path)
-    except Exception as e:
-        st.error(f"Failed to load the dataset: {e}")
-        return
-
-    # Default code in the editor
-    default_code = """# Analyze the Lego dataset\n\n# The dataset is loaded as 'lego_data'.\n# Example: Display the first 5 rows\nprint(lego_data.head())\n\n# Visualization example\nimport matplotlib.pyplot as plt\n\n# Group the data by color and calculate the total quantity\ncolor_group = lego_data.groupby('Block Color')['Available Quantity'].sum()\n\n# Create a bar chart\nplt.figure(figsize=(10, 6))\ncolor_group.plot(kind='bar', color=['red', 'blue', 'yellow', 'green', 'black', 'gray'])\nplt.title('Total Quantity of Lego Blocks by Color')\nplt.xlabel('Block Color')\nplt.ylabel('Available Quantity')\nplt.xticks(rotation=45)\nplt.tight_layout()\n\n# Show the plot\nst.pyplot(plt)\n"""
-
-    # Create the code editor
-    code = st_ace(
-        value=default_code,
-        language="python",
-        theme="monokai",
-        key="ace_editor",
-        height=300
-    )
-
-    # Run the code
-    if st.button("Run Code"):
-        try:
-            # Capture the output of the executed code
-            output_buffer = io.StringIO()
-            exec_globals = {"lego_data": lego_data, "st": st, "plt": plt}
-            with contextlib.redirect_stdout(output_buffer):
-                exec(code, exec_globals)
-            output = output_buffer.getvalue()
-            st.text_area("Output", value=output, height=200)
-        except Exception as e:
-            st.error(f"Error: {e}")
+    apply_style()
+    st.title("Geographic Coordinates Mapping Assignment")
+    
+    # Student Information Section
+    col1, col2 = st.columns(2)
+    with col1:
+        name = st.text_input("Full Name *")
+        email = st.text_input("Email *")
+    with col2:
+        student_id = st.text_input("Student ID (Optional)")
+    
+    # Assignment Instructions
+    with st.expander("📝 Assignment Instructions", expanded=True):
+        st.markdown("""
+        ### Week 1 – Mapping Coordinates and Calculating Distances
+        
+        **Required Points to Map:**
+        - Point 1: (36.325735, 43.928414)
+        - Point 2: (36.393432, 44.586781)
+        - Point 3: (36.660477, 43.840174)
+        
+        **Expected Output:**
+        1. Interactive map showing all three points
+        2. Calculated distances between each pair of points
+        
+        **Reference Distances:**
+        - Point 1 to Point 2: 59.57 km
+        - Point 2 to Point 3: 73.14 km
+        - Point 1 to Point 3: 37.98 km
+        """)
+    
+    # Code Input Section
+    st.markdown("### 💻 Code Submission")
+    code = st.text_area("Paste your Google Colab code here:", height=300)
+    
+    col1, col2 = st.columns(2)
+    
+    # Run Code Button
+    with col1:
+        if st.button("▶️ Run Code", use_container_width=True):
+            if code.strip():
+                try:
+                    points = [
+                        (36.325735, 43.928414),
+                        (36.393432, 44.586781),
+                        (36.660477, 43.840174)
+                    ]
+                    
+                    # Display map
+                    m = create_map(points)
+                    folium_static(m)
+                    
+                    # Calculate and display distances
+                    dist_1_2, dist_2_3, dist_1_3 = calculate_distances(points)
+                    st.success("✅ Distances calculated successfully!")
+                    st.write(f"Distance Point 1 to Point 2: {dist_1_2:.2f} km")
+                    st.write(f"Distance Point 2 to Point 3: {dist_2_3:.2f} km")
+                    st.write(f"Distance Point 1 to Point 3: {dist_1_3:.2f} km")
+                
+                except Exception as e:
+                    st.error(f"❌ Error in code execution: {str(e)}")
+            else:
+                st.warning("⚠️ Please paste your code before running")
+    
+    # Submit Button
+    with col2:
+        if st.button("📤 Submit Assignment", use_container_width=True):
+            if not name or not email:
+                st.error("❌ Please fill in the required fields (Name and Email)")
+            elif not code.strip():
+                st.error("❌ Please paste your code before submitting")
+            else:
+                grade = grade_submission(code)
+                save_submission(name, email, student_id, grade)
+                st.balloons()
+                st.success(f"✅ Assignment submitted successfully! Your grade: {grade}/100")
 
 if __name__ == "__main__":
     main()
